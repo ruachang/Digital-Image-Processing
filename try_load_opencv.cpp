@@ -7,6 +7,8 @@
 #include <vector>
 #include <string>
 #include <opencv4/opencv2/opencv.hpp>
+// #include <opencv2/core.hpp> 这个似乎也不会报错
+#include <opencv4/opencv2/core.hpp>
 
 using namespace std;
 using namespace cv;
