@@ -18,7 +18,12 @@
         },
         "C_Cpp.default.includePath": [
             "/usr/local/Cellar/opencv@3/3.4.16_4/include"
-        ]
+        ],
+        "files.associations": {
+            "fstream": "cpp",
+            "iostream": "cpp",
+            "ostream": "cpp"
+        }
     
     
 }
