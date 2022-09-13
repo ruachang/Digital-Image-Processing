@@ -6,6 +6,8 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include "opencv4/opencv2/opencv.hpp"
+#include <opencv4/opencv2/highgui.hpp>
 
 using namespace std;
 
