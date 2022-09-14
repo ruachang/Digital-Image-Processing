@@ -47,6 +47,7 @@ int main()
 }
 
 void bmpFileInfo(ifstream &fpbmp, int &Offset, int &rows, int &cols)
+// * 不管用什么办法读取, 这里应该都是通用的, 即获取图片的基本信息, 并把读取的指针指向像素的第一位
 {
     BITMAPFILEHEADER fh;
     WORD bfType;
@@ -109,6 +110,8 @@ void bmpFileInfo(ifstream &fpbmp, int &Offset, int &rows, int &cols)
 
 void bmp24bitToMat(ifstream &fpbmp, Mat &bmp, int Offset)
 // * 这个就是正常的载入
+// * 由于直接用了cv::Mat类, 这里的读入比较简单, 直接循环读就好
+// ? 不知道直接用二维数组或者链表怎么读, 直接读入不知道之后方不方便进行操作
 {
     // * 从起点之后的多少个开始读, offset为信息头
     fpbmp.seekg(Offset, fpbmp.beg);
