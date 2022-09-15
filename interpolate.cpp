@@ -15,7 +15,7 @@ void bmp8bitToMat(ifstream &fpbmp, Mat &bmp, int Offset);
 // 最邻近插值
 void interpolate_nearest(Mat &src, Mat &dst, int height, int width);
 // 双线性插值
-void interpolate_bilinear(Mat &src, Mat &dst);
+void interpolate_bilinear(Mat &src, Mat &dst, int height, int width);
 
 int main()
 {
@@ -31,14 +31,19 @@ int main()
     bmpFileInfo(fpbmp, Offset, rows, cols);
     Mat bmp(rows, cols, CV_8UC1);
     Mat dst_nearest(rows * 1.5, cols * 1.5, CV_8UC1);
+    Mat dst_bilinear(rows * 1.5, cols * 1.5, CV_8UC1);
+
     // * 不同色的bmp图片
     // 24
     bmp8bitToMat(fpbmp, bmp, Offset);
 
     interpolate_nearest(bmp, dst_nearest, rows * 1.5, cols * 1.5);
+    interpolate_bilinear(bmp, dst_bilinear, rows * 1.5, cols * 1.5);
+
     // * 展示图片
     imshow("original", bmp);
     imshow("nearest", dst_nearest);
+    imshow("bilinear", dst_bilinear);
     waitKey(0);
     destroyAllWindows();
     return 0;
@@ -121,17 +126,17 @@ void bmp8bitToMat(ifstream &fpbmp, Mat &bmp, int Offset)
 }
 
 void interpolate_nearest(Mat &src, Mat &dst, int height, int width)
-// 最邻近: 对图像进行坐标变化后, 映射到最近的像素点上
+// * 最邻近: 对图像进行坐标变化后, 映射到最近的像素点上 ==> 需要计算现在放缩后的图像的像素点在原图上像素点的对应
 // height, width: 目标映射的位置
 {
     Mat tmp(height, width, CV_8UC1);
+    // 插值计算得到的坐标点
     int res_h, res_w;
     for (int i = 0; i < height; i++)
     // 针对每一个像素做相同的操作
     {
         for (int j = 0; j < width; j++)
         {
-
             res_h = int(float(i) / height * src.rows + 0.5);
             res_w = int(float(j) / width * src.cols + 0.5);
             // 根据求得的坐标的位置映射到对应的位置
@@ -142,6 +147,31 @@ void interpolate_nearest(Mat &src, Mat &dst, int height, int width)
 }
 
 void interpolate_bilinear(Mat &src, Mat &dst, int height, int width)
+// * 双线性: 在重投影之后利用周围的四个点确定, 由周围的四个点加权得到现在值, 权重由距离决定
 {
     Mat tmp(height, width, CV_8UC1);
+    int res_h, res_w = 0;
+    float reflect_h, reflect_w = 0.0;
+    float dis_h, dis_w = 0.0;
+    for (int i = 0; i < height; i++)
+    {
+        for (int j = 0; j < width; j++)
+        {
+            reflect_h = float(i) / height * src.rows;
+            reflect_w = float(j) / width * src.cols;
+            // 得到重投影的目标点
+            res_h = int(reflect_h);
+            res_w = int(reflect_w);
+            // 得到重投影后的距离, 代表权重
+            dis_h = reflect_h - res_h;
+            dis_w = reflect_w - res_w;
+            // 某一个点的值等于周围四个点的加权求和
+            tmp.at<uchar>(i, j) =
+                (1 - dis_h) * (1 - dis_w) * src.at<uchar>(res_h, res_w) +
+                (1 - dis_h) * dis_w * src.at<uchar>(res_h + 1, res_w) +
+                (dis_h) * (1 - dis_w) * src.at<uchar>(res_h, res_w + 1) +
+                (dis_h)*dis_w * src.at<uchar>(res_h + 1, res_w + 1);
+        }
+    }
+    dst = tmp.clone();
 }
