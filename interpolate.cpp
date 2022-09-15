@@ -12,6 +12,10 @@ using namespace cv;
 void bmpFileInfo(ifstream &fpbmp, int &Offset, int &rows, int &cols);
 /* 将 bmp图片读入 Mat 中 */
 void bmp8bitToMat(ifstream &fpbmp, Mat &bmp, int Offset);
+// 最邻近插值
+void interpolate_nearest(Mat &src, Mat &dst, int height, int width);
+// 双线性插值
+void interpolate_bilinear(Mat &src, Mat &dst);
 
 int main()
 {
@@ -26,13 +30,15 @@ int main()
     // * 初始化信息函数
     bmpFileInfo(fpbmp, Offset, rows, cols);
     Mat bmp(rows, cols, CV_8UC1);
-
+    Mat dst_nearest(rows * 1.5, cols * 1.5, CV_8UC1);
     // * 不同色的bmp图片
     // 24
     bmp8bitToMat(fpbmp, bmp, Offset);
 
+    interpolate_nearest(bmp, dst_nearest, rows * 1.5, cols * 1.5);
     // * 展示图片
     imshow("original", bmp);
+    imshow("nearest", dst_nearest);
     waitKey(0);
     destroyAllWindows();
     return 0;
@@ -112,4 +118,24 @@ void bmp8bitToMat(ifstream &fpbmp, Mat &bmp, int Offset)
             fpbmp.read((char *)&bmp.at<uchar>(i, j), 1);
         }
     }
+}
+
+void interpolate_nearest(Mat &src, Mat &dst, int height, int width)
+// 最邻近: 对图像进行坐标变化后, 映射到最近的像素点上
+// height, width: 目标映射的位置
+{
+    Mat tmp(height, width, CV_8UC1);
+    int res_h, res_w;
+    for (int i = 0; i < height; i++)
+    // 针对每一个像素做相同的操作
+    {
+        for (int j = 0; j < width; j++)
+        {
+            res_h = int(float(i) / height * src.rows + 0.5);
+            res_w = int(float(j) / width * src.cols + 0.5);
+            // 根据求得的坐标的位置映射到对应的位置
+            tmp.at<uchar>(i, j) = src.at<uchar>(res_h, res_w);
+        }
+    }
+    dst = tmp.clone();
 }
