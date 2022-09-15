@@ -131,6 +131,7 @@ void interpolate_nearest(Mat &src, Mat &dst, int height, int width)
     {
         for (int j = 0; j < width; j++)
         {
+
             res_h = int(float(i) / height * src.rows + 0.5);
             res_w = int(float(j) / width * src.cols + 0.5);
             // 根据求得的坐标的位置映射到对应的位置
@@ -138,4 +139,9 @@ void interpolate_nearest(Mat &src, Mat &dst, int height, int width)
         }
     }
     dst = tmp.clone();
+}
+
+void interpolate_bilinear(Mat &src, Mat &dst, int height, int width)
+{
+    Mat tmp(height, width, CV_8UC1);
 }
