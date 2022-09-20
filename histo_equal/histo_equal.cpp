@@ -12,9 +12,30 @@ using namespace cv;
 void bmpFileInfo(ifstream &fpbmp, int &Offset, int &rows, int &cols);
 /* 将 bmp图片读入 Mat 中 */
 void bmp8bitToMat(ifstream &fpbmp, Mat &bmp, int Offset);
-
+/* 灰度均衡 */
+void histo_equal(Mat &src, Mat &dst);
 int main()
 {
+    ifstream fpbmp("data2.bmp", ifstream::in | ifstream::binary);
+    fpbmp.seekg(0, fpbmp.end);
+    int length = fpbmp.tellg();
+    fpbmp.seekg(0, fpbmp.beg);
+    cout << "Length of the bmp: " << length << endl;
+
+    int Offset, rows, cols;
+    // * 初始化信息函数
+    bmpFileInfo(fpbmp, Offset, rows, cols);
+    Mat bmp(rows, cols, CV_8UC1);
+    bmp8bitToMat(fpbmp, bmp, Offset);
+    Mat output = bmp.clone();
+    Mat example_out = bmp.clone();
+    histo_equal(bmp, output);
+    equalizeHist(bmp, example_out);
+    imshow("original", bmp);
+    imshow("histogram_equalization", output);
+    imshow("histogram equalization by opencv", example_out);
+    waitKey(0);
+    destroyAllWindows();
     return 0;
 }
 
@@ -90,6 +111,68 @@ void bmp8bitToMat(ifstream &fpbmp, Mat &bmp, int Offset)
         for (int j = 0; j < bmp.cols; j++)
         {
             fpbmp.read((char *)&bmp.at<uchar>(i, j), 1);
+        }
+    }
+}
+
+void histo_equal(Mat &src, Mat &dst)
+{
+    int pixel_num;
+    // 记录原图像每个像素值的点数
+    int gray_num[256] = {0};
+    // 记录原图像每个像素值的概率
+    double gray_prob[256];
+    // 记录图像总的累计密度
+    double gray_distribute[256] = {0};
+    // 记录重映射后的值
+    int gray_reapply[256];
+
+    double check = 0.0;
+    int cols, rows;
+    int max_value = 0;
+    cols = src.cols;
+    rows = src.rows;
+    pixel_num = cols * rows;
+    // 统计每个值的个数
+    for (int i = 0; i < rows; i++)
+    {
+        // uchar *pdata = src.ptr<uchar>(i);
+        for (int j = 0; j < cols; j++)
+        {
+            int value = src.at<uchar>(i, j);
+            if (value > max_value)
+            {
+                max_value = value;
+            }
+            gray_num[value]++;
+        }
+    }
+
+    for (int i = 0; i < 256; i++)
+    {
+        gray_prob[i] = double(gray_num[i]) / pixel_num;
+        check += gray_prob[i];
+    }
+
+    cout << "Sum of the prob: " << check << endl;
+    cout << "Max pixel of the pic: " << max_value << endl;
+    gray_distribute[0] = gray_prob[0];
+    for (int i = 1; i < 256; i++)
+    {
+        gray_distribute[i] = gray_prob[i] + gray_distribute[i - 1];
+    }
+
+    for (int i = 0; i < 256; i++)
+    {
+        gray_reapply[i] = uchar(255 * gray_distribute[i] + 0.5);
+        // gray_reapply[i] = uchar(255 * gray_distribute[i]);
+    }
+
+    for (int i = 0; i < rows; i++)
+    {
+        for (int j = 0; j < cols; j++)
+        {
+            dst.at<uchar>(i, j) = gray_reapply[src.at<uchar>(i, j)];
         }
     }
 }
