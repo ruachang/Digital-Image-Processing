@@ -13,10 +13,10 @@ void bmpFileInfo(ifstream &fpbmp, int &Offset, int &rows, int &cols);
 /* 将 bmp图片读入 Mat 中 */
 void bmp8bitToMat(ifstream &fpbmp, Mat &bmp, int Offset);
 /* 中值滤波 */
-void mid_filter(Mat &src, Mat &dst);
+void mid_filter(Mat &src, Mat &dst, int kernel_size);
 int main()
 {
-    ifstream fpbmp("data2.bmp", ifstream::in | ifstream::binary);
+    ifstream fpbmp("lena256-pepper&salt.bmp", ifstream::in | ifstream::binary);
     fpbmp.seekg(0, fpbmp.end);
     int length = fpbmp.tellg();
     fpbmp.seekg(0, fpbmp.beg);
@@ -29,7 +29,8 @@ int main()
     bmp8bitToMat(fpbmp, bmp, Offset);
     Mat output = bmp.clone();
     Mat example_out = bmp.clone();
-    equalizeHist(bmp, example_out);
+    mid_filter(bmp, output, 3);
+    medianBlur(bmp, example_out, 3);
     imshow("original", bmp);
     imshow("mid value filter", output);
     imshow("mid value by opencv", example_out);
@@ -110,6 +111,59 @@ void bmp8bitToMat(ifstream &fpbmp, Mat &bmp, int Offset)
         for (int j = 0; j < bmp.cols; j++)
         {
             fpbmp.read((char *)&bmp.at<uchar>(i, j), 1);
+        }
+    }
+}
+
+void mid_filter(Mat &src, Mat &dst, int kernel_size)
+{
+    // 读取以(i, j)为中心的模板
+    for (int i = 0; i < src.rows; i++)
+    {
+        for (int j = 0; j < src.cols; j++)
+        {
+            int pixel_seq[kernel_size * kernel_size];
+            // 滤波器模板覆盖范围
+            int range = (kernel_size - 1) / 2;
+            for (int p = 0 - range; p < range + 1; p++)
+            {
+                for (int q = 0 - range; q < range + 1; q++)
+                {
+                    // 计算正在算的是第几个(其实完全没必要, 直接整个计数器更方便, 就是闲的)
+                    int ord = (p + range) * kernel_size + q + range;
+                    if (i + p < 0 || j + q < 0 || i + p > src.rows - 1 || j + q > src.cols - 1)
+                    {
+                        pixel_seq[ord] = 0;
+                    }
+                    else
+                    {
+                        pixel_seq[ord] = src.at<uchar>(i + p, j + q);
+                    }
+                }
+            }
+            // int ordered_seq[kernel_size * kernel_size];
+            // 太菜了, 居然不会排序了,o(╥﹏╥)o, 只能用最暴力的方法了
+            for (int n = 0; n < kernel_size * kernel_size; n++)
+            {
+                int max = pixel_seq[n];
+                int max_ord = n;
+                // 确定剩下的里面最大的
+                for (int k = n; k < kernel_size * kernel_size; k++)
+                {
+                    if (pixel_seq[k] > max)
+                    {
+                        max = pixel_seq[k];
+                        max_ord = k;
+                    }
+                }
+                // 逆序排列
+                // ordered_seq[n] = max;
+                // 交换
+                int tmp = pixel_seq[n];
+                pixel_seq[n] = max;
+                pixel_seq[max_ord] = tmp;
+            }
+            dst.at<uchar>(i, j) = pixel_seq[(kernel_size * kernel_size + 1) / 2];
         }
     }
 }
