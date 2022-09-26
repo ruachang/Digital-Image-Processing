@@ -141,7 +141,6 @@ void mid_filter(Mat &src, Mat &dst, int kernel_size)
                     }
                 }
             }
-            // int ordered_seq[kernel_size * kernel_size];
             // 太菜了, 居然不会排序了,o(╥﹏╥)o, 只能用最暴力的方法了
             for (int n = 0; n < kernel_size * kernel_size; n++)
             {
@@ -157,7 +156,6 @@ void mid_filter(Mat &src, Mat &dst, int kernel_size)
                     }
                 }
                 // 逆序排列
-                // ordered_seq[n] = max;
                 // 交换
                 int tmp = pixel_seq[n];
                 pixel_seq[n] = max;
