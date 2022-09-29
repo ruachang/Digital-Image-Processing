@@ -14,6 +14,9 @@ void bmpFileInfo(ifstream &fpbmp, int &Offset, int &rows, int &cols);
 void bmp8bitToMat(ifstream &fpbmp, Mat &bmp, int Offset);
 /* 中值滤波 */
 void mid_filter(Mat &src, Mat &dst, int kernel_size);
+/* 低通高斯滤波 */
+void lp_gauss_filter(Mat &src, Mat &dst, int kernel_size, double sigma);
+
 int main()
 {
     ifstream fpbmp("lena256-pepper&salt.bmp", ifstream::in | ifstream::binary);
@@ -29,11 +32,17 @@ int main()
     bmp8bitToMat(fpbmp, bmp, Offset);
     Mat output = bmp.clone();
     Mat example_out = bmp.clone();
+    Mat output1 = bmp.clone();
+    Mat example_out1 = bmp.clone();
+    lp_gauss_filter(bmp, output1, 3, 1);
+    GaussianBlur(bmp, example_out1, Size(3, 3), 1);
     mid_filter(bmp, output, 3);
     medianBlur(bmp, example_out, 3);
     imshow("original", bmp);
     imshow("mid value filter", output);
     imshow("mid value by opencv", example_out);
+    imshow("median blur value filter", output1);
+    imshow("median blur value by opencv", example_out1);
     waitKey(0);
     destroyAllWindows();
     return 0;
@@ -111,6 +120,46 @@ void bmp8bitToMat(ifstream &fpbmp, Mat &bmp, int Offset)
         for (int j = 0; j < bmp.cols; j++)
         {
             fpbmp.read((char *)&bmp.at<uchar>(i, j), 1);
+        }
+    }
+}
+
+void lp_gauss_filter(Mat &src, Mat &dst, int kernel_size, double sigma)
+{
+    int range = (kernel_size - 1) / 2;
+    double gauss_mask[kernel_size][kernel_size];
+    // 计算高斯核
+    for (int i = 0 - range; i < range + 1; i++)
+    {
+        for (int j = 0 - range; j < range + 1; j++)
+        {
+            gauss_mask[i + range][j + range] = exp(-(i * i + j * j) / (2 * sigma)) / (2 * 3.14 * sigma);
+        }
+    }
+    // 空间域卷积
+    for (int i = 0; i < dst.rows; i++)
+    {
+        for (int j = 0; j < dst.cols; j++)
+        {
+            double value = 0.0;
+            double pic_value = 0.0;
+            // 在滤波器模板范围内进行依序相乘, 叠加
+            for (int m = -range; m <= range; m++)
+            {
+                for (int n = -range; n <= range; n++)
+                {
+                    if (i + m >= 0 && j + n >= 0 && i + m < dst.rows && j + n < dst.cols)
+                    {
+                        pic_value = src.at<uchar>(i + m, j + n);
+                    }
+                    else
+                    {
+                        pic_value = 0.0;
+                    }
+                    value += gauss_mask[range + m][range + n] * pic_value;
+                }
+            }
+            dst.at<uchar>(i, j) = value;
         }
     }
 }
