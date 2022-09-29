@@ -16,7 +16,12 @@ void bmp8bitToMat(ifstream &fpbmp, Mat &bmp, int Offset);
 void interpolate_nearest(Mat &src, Mat &dst, int height, int width);
 // 双线性插值
 void interpolate_bilinear(Mat &src, Mat &dst, int height, int width);
+// 获得双三次插值的参数
+void get_param(double w_x[4], double pixel);
+// 双三次插值
+void interpolate_bicubic(Mat &src, Mat &dst, int height, int width);
 
+double a = -0.5;
 int main()
 {
     // * 打开 bmp 文件
@@ -32,6 +37,7 @@ int main()
     Mat bmp(rows, cols, CV_8UC1);
     Mat dst_nearest(rows * 1.5, cols * 1.5, CV_8UC1);
     Mat dst_bilinear(rows * 1.5, cols * 1.5, CV_8UC1);
+    Mat dst_bicubic(rows * 1.5, cols * 1.5, CV_8UC1);
 
     // * 不同色的bmp图片
     // 24
@@ -39,11 +45,12 @@ int main()
 
     interpolate_nearest(bmp, dst_nearest, rows * 1.5, cols * 1.5);
     interpolate_bilinear(bmp, dst_bilinear, rows * 1.5, cols * 1.5);
-
+    interpolate_bicubic(bmp, dst_bicubic, rows * 1.5, cols * 1.5);
     // * 展示图片
     imshow("original", bmp);
     imshow("nearest", dst_nearest);
     imshow("bilinear", dst_bilinear);
+    imshow("bicubic", dst_bicubic);
     waitKey(0);
     destroyAllWindows();
     return 0;
@@ -174,4 +181,60 @@ void interpolate_bilinear(Mat &src, Mat &dst, int height, int width)
         }
     }
     dst = tmp.clone();
+}
+
+void get_param(double w_x[4], double pixel)
+{
+    int X = int(pixel);
+    double stemp_x[4];
+    // 左2
+    stemp_x[0] = 1 + (pixel - X);
+    // 左1
+    stemp_x[1] = pixel - X;
+    // 右1
+    stemp_x[2] = 1 - (pixel - X);
+    // 右2
+    stemp_x[3] = 2 - (pixel - X);
+    // 根据双三次插值函数的定义直接求参数
+    w_x[0] = a * abs(stemp_x[0] * stemp_x[0] * stemp_x[0]) - 5 * a * stemp_x[0] * stemp_x[0] + 8 * a * abs(stemp_x[0]) - 4 * a;
+    w_x[1] = (a + 2) * abs(stemp_x[1] * stemp_x[1] * stemp_x[1]) - (a + 3) * stemp_x[1] * stemp_x[1] + 1;
+    w_x[2] = (a + 2) * abs(stemp_x[2] * stemp_x[2] * stemp_x[2]) - (a + 3) * stemp_x[2] * stemp_x[2] + 1;
+    w_x[3] = a * abs(stemp_x[3] * stemp_x[3] * stemp_x[3]) - 5 * a * stemp_x[3] * stemp_x[3] + 8 * a * abs(stemp_x[3]) - 4 * a;
+}
+
+void interpolate_bicubic(Mat &src, Mat &dst, int height, int width)
+{
+    double reflect_h, reflect_w;
+    int res_h, res_w;
+    double w_h[4];
+    double w_w[4];
+    for (int i = 0; i < height; i++)
+    {
+        for (int j = 0; j < width; j++)
+        {
+            reflect_h = float(i) / height * src.rows;
+            reflect_w = float(j) / width * src.cols;
+            res_h = int(reflect_h);
+            res_w = int(reflect_w);
+            if (res_h - 1 >= 0 && res_w - 1 >= 0 && res_h + 2 < src.rows && res_w + 2 < src.cols)
+            {
+                double value = 0.0;
+                get_param(w_h, reflect_h);
+                get_param(w_w, reflect_w);
+
+                for (int m = -1; m < 3; m++)
+                {
+                    for (int n = -1; n < 3; n++)
+                    {
+                        value += src.at<uchar>(res_h + m, res_w + n) * (w_h[m + 1] * w_w[n + 1]);
+                    }
+                }
+                dst.at<uchar>(i, j) = value;
+            }
+            else
+            {
+                dst.at<uchar>(i, j) = src.at<uchar>(res_h, res_w);
+            }
+        }
+    }
 }
