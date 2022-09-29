@@ -16,7 +16,7 @@ void bmp8bitToMat(ifstream &fpbmp, Mat &bmp, int Offset);
 void histo_equal(Mat &src, Mat &dst);
 int main()
 {
-    ifstream fpbmp("data2.bmp", ifstream::in | ifstream::binary);
+    ifstream fpbmp("0501bw.bmp", ifstream::in | ifstream::binary);
     fpbmp.seekg(0, fpbmp.end);
     int length = fpbmp.tellg();
     fpbmp.seekg(0, fpbmp.beg);
@@ -34,6 +34,10 @@ int main()
     imshow("original", bmp);
     imshow("histogram_equalization", output);
     imshow("histogram equalization by opencv", example_out);
+
+    imwrite("result/灰度均衡结果2.png", output);
+    imwrite("result/灰度均衡结果OpenCV2.png", example_out);
+
     waitKey(0);
     destroyAllWindows();
     return 0;
@@ -127,9 +131,7 @@ void histo_equal(Mat &src, Mat &dst)
     // 记录重映射后的值
     int gray_reapply[256];
 
-    double check = 0.0;
     int cols, rows;
-    int max_value = 0;
     cols = src.cols;
     rows = src.rows;
     pixel_num = cols * rows;
@@ -140,28 +142,21 @@ void histo_equal(Mat &src, Mat &dst)
         for (int j = 0; j < cols; j++)
         {
             int value = src.at<uchar>(i, j);
-            if (value > max_value)
-            {
-                max_value = value;
-            }
             gray_num[value]++;
         }
     }
-
+    // * 计算每种像素值出现的可能性fp
     for (int i = 0; i < 256; i++)
     {
         gray_prob[i] = double(gray_num[i]) / pixel_num;
-        check += gray_prob[i];
     }
-
-    cout << "Sum of the prob: " << check << endl;
-    cout << "Max pixel of the pic: " << max_value << endl;
+    // * 计算概率密度分布PDF
     gray_distribute[0] = gray_prob[0];
     for (int i = 1; i < 256; i++)
     {
         gray_distribute[i] = gray_prob[i] + gray_distribute[i - 1];
     }
-
+    // * 对灰度重新分配
     for (int i = 0; i < 256; i++)
     {
         gray_reapply[i] = uchar(255 * gray_distribute[i] + 0.5);
