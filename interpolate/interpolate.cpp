@@ -51,6 +51,10 @@ int main()
     imshow("nearest", dst_nearest);
     imshow("bilinear", dst_bilinear);
     imshow("bicubic", dst_bicubic);
+
+    imwrite("result/最邻近插值结果.png", dst_nearest);
+    imwrite("result/双线性插值结果.png", dst_bilinear);
+    imwrite("result/双三次插值结果.png", dst_bicubic);
     waitKey(0);
     destroyAllWindows();
     return 0;
@@ -146,7 +150,7 @@ void interpolate_nearest(Mat &src, Mat &dst, int height, int width)
         {
             res_h = int(float(i) / height * src.rows + 0.5);
             res_w = int(float(j) / width * src.cols + 0.5);
-            // 根据求得的坐标的位置映射到对应的位置
+            // 根据求得的坐标的位置映射到对应的位置, 直接取最近的值作为新的值
             tmp.at<uchar>(i, j) = src.at<uchar>(res_h, res_w);
         }
     }
@@ -184,6 +188,7 @@ void interpolate_bilinear(Mat &src, Mat &dst, int height, int width)
 }
 
 void get_param(double w_x[4], double pixel)
+// * 为双三次插值函数计算某一个像素点某个方向上的所有的点的可能参数值
 {
     int X = int(pixel);
     double stemp_x[4];
@@ -203,6 +208,7 @@ void get_param(double w_x[4], double pixel)
 }
 
 void interpolate_bicubic(Mat &src, Mat &dst, int height, int width)
+// * 双三次插值
 {
     double reflect_h, reflect_w;
     int res_h, res_w;
@@ -212,16 +218,18 @@ void interpolate_bicubic(Mat &src, Mat &dst, int height, int width)
     {
         for (int j = 0; j < width; j++)
         {
+            // * 计算投影过去新的位置以及整数点值
             reflect_h = float(i) / height * src.rows;
             reflect_w = float(j) / width * src.cols;
             res_h = int(reflect_h);
             res_w = int(reflect_w);
+            // * 如果像素点附近所有点都在图像内
             if (res_h - 1 >= 0 && res_w - 1 >= 0 && res_h + 2 < src.rows && res_w + 2 < src.cols)
             {
                 double value = 0.0;
                 get_param(w_h, reflect_h);
                 get_param(w_w, reflect_w);
-
+                // * 根据计算得到的参数为每一点加权
                 for (int m = -1; m < 3; m++)
                 {
                     for (int n = -1; n < 3; n++)
@@ -231,6 +239,7 @@ void interpolate_bicubic(Mat &src, Mat &dst, int height, int width)
                 }
                 dst.at<uchar>(i, j) = value;
             }
+            // * 如果附近某一点出去了, 则直接取最邻近
             else
             {
                 dst.at<uchar>(i, j) = src.at<uchar>(res_h, res_w);
