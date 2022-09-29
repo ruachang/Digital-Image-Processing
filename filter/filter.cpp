@@ -19,7 +19,7 @@ void lp_gauss_filter(Mat &src, Mat &dst, int kernel_size, double sigma);
 
 int main()
 {
-    ifstream fpbmp("lena256-pepper&salt.bmp", ifstream::in | ifstream::binary);
+    ifstream fpbmp("girl256-pepper&salt.bmp", ifstream::in | ifstream::binary);
     fpbmp.seekg(0, fpbmp.end);
     int length = fpbmp.tellg();
     fpbmp.seekg(0, fpbmp.beg);
@@ -38,6 +38,13 @@ int main()
     GaussianBlur(bmp, example_out1, Size(3, 3), 1);
     mid_filter(bmp, output, 3);
     medianBlur(bmp, example_out, 3);
+
+    // 展示和保存图片
+    imwrite("result/中值滤波结果2.png", output);
+    imwrite("result/低通高斯滤波结果2.png", output1);
+    imwrite("result/中值滤波OpenCV结果2.png", example_out);
+    imwrite("result/低通高斯滤波OpenCV结果2.png", example_out1);
+
     imshow("original", bmp);
     imshow("mid value filter", output);
     imshow("mid value by opencv", example_out);
@@ -45,6 +52,7 @@ int main()
     imshow("median blur value by opencv", example_out1);
     waitKey(0);
     destroyAllWindows();
+
     return 0;
 }
 
@@ -125,17 +133,29 @@ void bmp8bitToMat(ifstream &fpbmp, Mat &bmp, int Offset)
 }
 
 void lp_gauss_filter(Mat &src, Mat &dst, int kernel_size, double sigma)
+// 高斯低通滤波器
 {
     int range = (kernel_size - 1) / 2;
     double gauss_mask[kernel_size][kernel_size];
-    // 计算高斯核
+    // 根据高斯函数计算高斯核
+    double tmp = 0.0;
     for (int i = 0 - range; i < range + 1; i++)
     {
         for (int j = 0 - range; j < range + 1; j++)
         {
-            gauss_mask[i + range][j + range] = exp(-(i * i + j * j) / (2 * sigma)) / (2 * 3.14 * sigma);
+            gauss_mask[i + range][j + range] = exp(-(i * i + j * j) / (2 * sigma));
+            tmp += gauss_mask[i + range][j + range];
         }
     }
+    // 归一化
+    for (int i = 0 - range; i < range + 1; i++)
+    {
+        for (int j = 0 - range; j < range + 1; j++)
+        {
+            gauss_mask[i + range][j + range] /= tmp;
+        }
+    }
+
     // 空间域卷积
     for (int i = 0; i < dst.rows; i++)
     {
@@ -148,6 +168,7 @@ void lp_gauss_filter(Mat &src, Mat &dst, int kernel_size, double sigma)
             {
                 for (int n = -range; n <= range; n++)
                 {
+                    // 若不在边界就正常取值, 在边界则补零填充
                     if (i + m >= 0 && j + n >= 0 && i + m < dst.rows && j + n < dst.cols)
                     {
                         pic_value = src.at<uchar>(i + m, j + n);
@@ -156,6 +177,7 @@ void lp_gauss_filter(Mat &src, Mat &dst, int kernel_size, double sigma)
                     {
                         pic_value = 0.0;
                     }
+                    // 相乘叠加
                     value += gauss_mask[range + m][range + n] * pic_value;
                 }
             }
@@ -166,7 +188,7 @@ void lp_gauss_filter(Mat &src, Mat &dst, int kernel_size, double sigma)
 
 void mid_filter(Mat &src, Mat &dst, int kernel_size)
 {
-    // 读取以(i, j)为中心的模板
+    // 读取以(i, j)为中心的模板, 对模板中的值排序代替原来的点
     for (int i = 0; i < src.rows; i++)
     {
         for (int j = 0; j < src.cols; j++)
@@ -190,6 +212,7 @@ void mid_filter(Mat &src, Mat &dst, int kernel_size)
                     }
                 }
             }
+
             // 太菜了, 居然不会排序了,o(╥﹏╥)o, 只能用最暴力的方法了
             for (int n = 0; n < kernel_size * kernel_size; n++)
             {

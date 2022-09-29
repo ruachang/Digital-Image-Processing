@@ -14,7 +14,8 @@
   * 使用大小为 `kernel_size` 的滤波器模板对图像进行中值滤波, 会起到 ***模糊*** 的作用
   * 要求输入为 ***单通道, 三通道或者四通道***, 输出的数据类型和大小和输入一样
   * kernel_size 必须是 ***大于1的奇数***
-
+* 高斯滤波: `GaussianBlur(Mat &src, Mat &dst, Size(length, width), X_sigma, Y_sigma)`
+  * 使用大小为 `Size: length * width` 的滤波器模板对图像进行高斯滤波, 理论上是低通, 去掉尖锐的部分, 也就是 ***模糊***
 ### 灰度直方图
 
 * 直方图均衡: `equalizeHist(Mat &src, Mat &dst)`
