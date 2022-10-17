@@ -12,8 +12,10 @@ using namespace cv;
 void bmpFileInfo(ifstream &fpbmp, int &Offset, int &rows, int &cols);
 /* 将 bmp图片读入 Mat 中 */
 void bmp8bitToMat(ifstream &fpbmp, Mat &bmp, int Offset);
-/* 中值滤波 */
-void adaptive_mid_filter(Mat &src, Mat &dst, int kernel_size);
+/* 窗口内辅助排序 */
+int window_order(Mat &src, int rows, int cols, int init_size, int max_size);
+/* 自适应中值滤波 */
+void adaptive_mid_filter(Mat &src, Mat &dst, int kernel_size, int max_size);
 
 int main()
 {
@@ -30,7 +32,7 @@ int main()
     bmp8bitToMat(fpbmp, bmp, Offset);
     Mat output = bmp.clone();
     Mat example_out = bmp.clone();
-    adaptive_mid_filter(bmp, output, 3);
+    adaptive_mid_filter(bmp, output, 3, 7);
     medianBlur(bmp, example_out, 3);
 
     // 展示和保存图片
@@ -38,7 +40,7 @@ int main()
     imwrite("result/中值滤波OpenCV结果2.png", example_out);
 
     imshow("original", bmp);
-    imshow("mid value filter", output);
+    imshow("adaptive mid value filter", output);
     imshow("mid value by opencv", example_out);
     waitKey(0);
     destroyAllWindows();
@@ -122,54 +124,101 @@ void bmp8bitToMat(ifstream &fpbmp, Mat &bmp, int Offset)
     }
 }
 
-void adaptive_mid_filter(Mat &src, Mat &dst, int kernel_size)
+int window_order(Mat &src, int rows, int cols, int init_size, int max_size)
+// 返回在(rows, cols)点的位置上进行滤波的结果
+// init_size为开始滤波的模板大小, max_size为最大可允许滤波的模板大小
+{
+    int size = init_size;
+    int value;
+    // 当滤波器模板小于等于可允许最大值时进行
+    while (size <= max_size)
+    {
+        int pixel_seq[size * size];
+        int range = (size - 1) / 2;
+        // STEP1 获得模板覆盖范围内所有值
+        for (int p = 0 - range; p < range + 1; p++)
+        {
+            for (int q = 0 - range; q < range + 1; q++)
+            {
+                // 计算正在算的是第几个(其实完全没必要, 直接整个计数器更方便, 就是闲的)
+                int ord = (p + range) * size + q + range;
+                if (rows + p < 0 || cols + q < 0 || rows + p > src.rows - 1 || cols + q > src.cols - 1)
+                {
+                    pixel_seq[ord] = 0;
+                }
+                else
+                {
+                    pixel_seq[ord] = src.at<uchar>(rows + p, cols + q);
+                }
+            }
+        }
+        // STEP2 对所有值进行排序
+        for (int n = 0; n < size * size; n++)
+        {
+            int max = pixel_seq[n];
+            int max_ord = n;
+            // 确定剩下的里面最大的
+            for (int k = n; k < size * size; k++)
+            {
+                if (pixel_seq[k] > max)
+                {
+                    max = pixel_seq[k];
+                    max_ord = k;
+                }
+            }
+            // 逆序排列
+            // 交换
+            int tmp = pixel_seq[n];
+            pixel_seq[n] = max;
+            pixel_seq[max_ord] = tmp;
+        }
+        // STEP3: 确定终止点是否是椒盐噪声
+        int med_min, med_max;
+        med_max = pixel_seq[(size * size + 1) / 2] - pixel_seq[0];
+        med_min = pixel_seq[(size * size + 1) / 2] - pixel_seq[size * size - 1];
+        // STEP4: 如果不是椒盐噪声
+        if (med_min > 0 && med_max < 0)
+        {
+            int pos_min, pos_max;
+            pos_max = src.at<uchar>(rows, cols) - pixel_seq[0];
+            pos_min = src.at<uchar>(rows, cols) - pixel_seq[size * size - 1];
+            // STEP5: 确定该点是不是噪声
+            if (pos_min > 0 && pos_max < 0)
+            {
+                // cout << "return original point" << endl;
+                return src.at<uchar>(rows, cols);
+            }
+            else
+            {
+                return pixel_seq[(size * size + 1) / 2];
+            }
+        }
+        // STEP4: 如果是椒盐噪声, 继续循环找到不是噪声的点
+        else
+        {
+            size += 2;
+            if (size <= max_size)
+            {
+                // cout << "filter expand" << endl;
+                continue;
+            }
+            else
+            {
+                value = pixel_seq[(max_size * max_size + 1) / 2];
+            }
+        }
+    }
+    return value;
+}
+
+void adaptive_mid_filter(Mat &src, Mat &dst, int kernel_size, int max_size)
 {
     // 读取以(i, j)为中心的模板, 对模板中的值排序代替原来的点
     for (int i = 0; i < src.rows; i++)
     {
         for (int j = 0; j < src.cols; j++)
         {
-            int pixel_seq[kernel_size * kernel_size];
-            // 滤波器模板覆盖范围
-            int range = (kernel_size - 1) / 2;
-            for (int p = 0 - range; p < range + 1; p++)
-            {
-                for (int q = 0 - range; q < range + 1; q++)
-                {
-                    // 计算正在算的是第几个(其实完全没必要, 直接整个计数器更方便, 就是闲的)
-                    int ord = (p + range) * kernel_size + q + range;
-                    if (i + p < 0 || j + q < 0 || i + p > src.rows - 1 || j + q > src.cols - 1)
-                    {
-                        pixel_seq[ord] = 0;
-                    }
-                    else
-                    {
-                        pixel_seq[ord] = src.at<uchar>(i + p, j + q);
-                    }
-                }
-            }
-
-            // 太菜了, 居然不会排序了,o(╥﹏╥)o, 只能用最暴力的方法了
-            for (int n = 0; n < kernel_size * kernel_size; n++)
-            {
-                int max = pixel_seq[n];
-                int max_ord = n;
-                // 确定剩下的里面最大的
-                for (int k = n; k < kernel_size * kernel_size; k++)
-                {
-                    if (pixel_seq[k] > max)
-                    {
-                        max = pixel_seq[k];
-                        max_ord = k;
-                    }
-                }
-                // 逆序排列
-                // 交换
-                int tmp = pixel_seq[n];
-                pixel_seq[n] = max;
-                pixel_seq[max_ord] = tmp;
-            }
-            dst.at<uchar>(i, j) = pixel_seq[(kernel_size * kernel_size + 1) / 2];
+            dst.at<uchar>(i, j) = window_order(src, i, j, kernel_size, max_size);
         }
     }
 }
