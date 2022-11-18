@@ -20,6 +20,7 @@
             "/usr/local/Cellar/opencv@3/3.4.16_4/include"
         ],
         "files.associations": {
+            "*.m": "matlab",
             "fstream": "cpp",
             "iostream": "cpp",
             "ostream": "cpp",
@@ -50,7 +51,8 @@
             "memory": "cpp",
             "array": "cpp",
             "utility": "cpp",
-            "variant": "cpp"
+            "variant": "cpp",
+            "new": "cpp"
         }
     
     

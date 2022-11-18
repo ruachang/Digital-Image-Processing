@@ -11,13 +11,13 @@ using namespace cv;
 /* 输出 bmp 图片头部信息 */
 void bmpFileInfo(ifstream &fpbmp, int &Offset, int &rows, int &cols);
 /* 将 bmp图片读入 Mat 中 */
-void bmp8bitToMat(ifstream &fpbmp, Mat &bmp, int Offset);
+void bmp1bitToMat(ifstream &fpbmp, Mat &bmp, int Offset);
 /* 边界提取 */
 void edge_detect(Mat &src, Mat &dst, int kernel_size);
 
 int main()
 {
-    ifstream fpbmp("/Users/liuchang/Desktop/HW/Digital-Image-Processing/morph/binery-triangle-distorted.bmp", ifstream::in | ifstream::binary);
+    ifstream fpbmp("/Users/liuchang/Desktop/HW/Digital-Image-Processing/morph/binery-square-distorted.bmp", ifstream::in | ifstream::binary);
     fpbmp.seekg(0, fpbmp.end);
     int length = fpbmp.tellg();
     fpbmp.seekg(0, fpbmp.beg);
@@ -27,19 +27,14 @@ int main()
     // * 初始化信息函数
     bmpFileInfo(fpbmp, Offset, rows, cols);
     Mat bmp(rows, cols, CV_8UC1);
-    bmp8bitToMat(fpbmp, bmp, Offset);
+    bmp1bitToMat(fpbmp, bmp, Offset);
     Mat output = bmp.clone();
-    Mat example_out = bmp.clone();
-    edge_detect(bmp, output, 3);
-    medianBlur(bmp, example_out, 3);
+    edge_detect(bmp, output, 5);
 
     // 展示和保存图片
-    imwrite("result/边界提取结果.png", output);
-    imwrite("result/低通高斯滤波OpenCV结果2.png", example_out);
-
+    imwrite("result/边界提取结果3.png", output);
     imshow("original", bmp);
     imshow("detected edge", output);
-    imshow("mid value by opencv", example_out);
     waitKey(0);
     destroyAllWindows();
 
@@ -107,7 +102,7 @@ void bmpFileInfo(ifstream &fpbmp, int &Offset, int &rows, int &cols)
     }
 }
 
-void bmp8bitToMat(ifstream &fpbmp, Mat &bmp, int Offset)
+void bmp1bitToMat(ifstream &fpbmp, Mat &bmp, int Offset)
 // * 这个就是正常的载入
 {
     // * 从起点之后的多少个开始读, offset为信息头
@@ -135,12 +130,11 @@ void bmp8bitToMat(ifstream &fpbmp, Mat &bmp, int Offset)
 }
 
 void edge_detect(Mat &src, Mat &dst, int kernel_size)
-// 高斯低通滤波器
+// 边缘提取
 {
     int range = (kernel_size - 1) / 2;
     int mask[kernel_size][kernel_size];
 
-    // 空间域卷积
     for (int i = 0; i < dst.rows; i++)
     {
         for (int j = 0; j < dst.cols; j++)
@@ -148,6 +142,7 @@ void edge_detect(Mat &src, Mat &dst, int kernel_size)
             int pixel_seq[kernel_size * kernel_size];
             // 滤波器模板覆盖范围
             int range = (kernel_size - 1) / 2;
+            // 对模板覆盖范围内的元素排序得到最小值, 视为灰度的腐蚀操作
             for (int p = 0 - range; p < range + 1; p++)
             {
                 for (int q = 0 - range; q < range + 1; q++)
@@ -185,6 +180,7 @@ void edge_detect(Mat &src, Mat &dst, int kernel_size)
                 pixel_seq[n] = max;
                 pixel_seq[max_ord] = tmp;
             }
+            // 将目前的值和模板覆盖范围内最小的值相减, 也即和腐蚀结果相减
             dst.at<uchar>(i, j) = src.at<uchar>(i, j) - pixel_seq[kernel_size * kernel_size - 1];
         }
     }
