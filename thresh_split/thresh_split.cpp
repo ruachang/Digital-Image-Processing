@@ -29,9 +29,9 @@ int main()
     bmp8bitToMat(fpbmp, bmp, Offset);
     imshow("original", bmp);
     Mat output = bmp.clone();
-    // osu_split(bmp, output);
+    osu_split(bmp, output);
     // // imshow("original", bmp);
-    // imshow("splited pic", output);
+    imshow("splited pic", output);
 
     // imwrite("result/灰度均衡结果2.png", output);
 
@@ -122,9 +122,9 @@ void osu_split(Mat &src, Mat &dst)
     // 记录原图像每个像素值的点数
     int gray_num[256] = {0};
     // 记录原图像每个像素值的概率
-    double gray_prob[256];
+    float gray_prob[256];
     // 记录图像总的累计密度
-    double gray_distribute[256] = {0};
+    float gray_distribute[256] = {0};
     // 记录重映射后的值
     int gray_reapply[256];
 
@@ -152,6 +152,10 @@ void osu_split(Mat &src, Mat &dst)
     for (int i = 1; i < 256; i++)
     {
         gray_distribute[i] = gray_prob[i] + gray_distribute[i - 1];
+        if (i - gray_distribute[i] < 0.0000000001)
+        {
+            gray_distribute[i] = 1;
+        }
     }
     // * 计算灰度均值和方差
     double avg_gray, avg_sigma = 0;
@@ -164,18 +168,25 @@ void osu_split(Mat &src, Mat &dst)
         avg_sigma += gray_prob[i] * (i - avg_gray) * (i - avg_gray);
     }
     // * 从所有可能的取值中寻找可能最佳的分界线k, 其中判断标准是类间方差
-    double sigma[256] = {0};
+    float sigma[256] = {0};
     double k_gray[256] = {0};
 
-    for (int i = 0; i < 256; i++)
+    for (int i = 255; i >= 0; i--)
     {
         // 计算分界线为i时分类1的灰度均值
         for (int j = 0; j < i; j++)
         {
-            k_gray[i] += gray_prob[i] * i;
+            k_gray[i] += gray_prob[j] * j;
         }
         // 计算测度
-        sigma[i] = (avg_gray * gray_distribute[i] - k_gray[i]) * (avg_gray * gray_distribute[i] - k_gray[i]) / (gray_distribute[i] * (1 - gray_distribute[i]));
+        if (gray_distribute[i] == 1)
+        {
+            sigma[i] = 0;
+        }
+        else
+        {
+            sigma[i] = (avg_gray * gray_distribute[i] - k_gray[i]) * (avg_gray * gray_distribute[i] - k_gray[i]) / (gray_distribute[i] * (1 - gray_distribute[i]));
+        }
     }
 
     // * 确定使得类间方差最大的i值
