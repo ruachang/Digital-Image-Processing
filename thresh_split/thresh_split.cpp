@@ -12,8 +12,10 @@ using namespace cv;
 void bmpFileInfo(ifstream &fpbmp, int &Offset, int &rows, int &cols);
 /* 将 bmp图片读入 Mat 中 */
 void bmp8bitToMat(ifstream &fpbmp, Mat &bmp, int Offset);
-/* 灰度均衡 */
+/* Osu阈值分割 */
 void osu_split(Mat &src, Mat &dst);
+void edge_split(Mat &src, Mat &dst, float thresh);
+void multi_split(Mat &src, Mat &dst);
 int main()
 {
     ifstream fpbmp("yeast-cells.bmp", ifstream::in | ifstream::binary);
@@ -29,11 +31,19 @@ int main()
     bmp8bitToMat(fpbmp, bmp, Offset);
     imshow("original", bmp);
     Mat output = bmp.clone();
+    Mat edge_output = bmp.clone();
+    Mat multi_output = bmp.clone();
+
     osu_split(bmp, output);
+    edge_split(bmp, edge_output, 0.95);
+    multi_split(bmp, multi_output);
     // // imshow("original", bmp);
     imshow("splited pic", output);
-
+    imshow("edge based splited pic", edge_output);
+    imshow("multi threshold splited pic", multi_output);
     imwrite("result/Osu阈值分割.png", output);
+    imwrite("result/基于边缘信息的阈值分割.png", edge_output);
+    imwrite("result/双阈值分割.png", multi_output);
 
     waitKey(0);
     destroyAllWindows();
@@ -125,8 +135,6 @@ void osu_split(Mat &src, Mat &dst)
     float gray_prob[256];
     // 记录图像总的累计密度
     float gray_distribute[256] = {0};
-    // 记录重映射后的值
-    int gray_reapply[256];
 
     int cols, rows;
     cols = src.cols;
@@ -210,6 +218,216 @@ void osu_split(Mat &src, Mat &dst)
             if (src.at<uchar>(i, j) < best_k)
             {
                 dst.at<uchar>(i, j) = 0;
+            }
+            else
+            {
+                dst.at<uchar>(i, j) = 255;
+            }
+        }
+    }
+}
+
+void edge_split(Mat &src, Mat &dst, float thresh)
+{
+    //  * 提取拉普拉斯绝对值图像
+    // 拉普拉斯算子
+    Mat laplace = src.clone();
+    Mat src_laplace = src.clone();
+    int laplace_kernel = -8;
+    int best = 0;
+    for (int i = 0; i < src.rows; i++)
+    {
+        for (int j = 0; j < src.cols; j++)
+        {
+            int laplace_tmp = 0;
+            for (int p = -1; p < 2; p++)
+            {
+                for (int q = -1; q < 2; q++)
+                {
+                    if (i + p < 0 || j + q < 0 || i + p > src.rows - 1 || j + q > src.cols - 1)
+                        laplace_tmp += 0;
+                    else if (p == 0 && q == 0)
+                        laplace_tmp += laplace_kernel * src.at<uchar>(i + p, j + q);
+                    else
+                        laplace_tmp += src.at<uchar>(i + p, j + q);
+                }
+            }
+            if (laplace_tmp < 0)
+                laplace_tmp = -laplace_tmp;
+            if (laplace_tmp > best)
+                best = laplace_tmp;
+            laplace.at<uchar>(i, j) = laplace_tmp;
+        }
+    }
+    // * 规定阈值对图像进行预处理, 得到模板图像
+    int pixel_num = laplace.rows * laplace.cols;
+    // 记录原图像每个像素值的点数
+    int gray_num[256 * 8] = {0};
+    // 记录原图像每个像素值的概率
+    float gray_prob[256 * 8];
+    // 记录图像总的累计密度
+    float gray_distribute[256 * 8] = {0};
+    for (int i = 0; i < laplace.rows; i++)
+    {
+        // uchar *pdata = src.ptr<uchar>(i);
+        for (int j = 0; j < laplace.cols; j++)
+        {
+            int value = laplace.at<uchar>(i, j);
+            gray_num[value]++;
+        }
+    }
+    // * 计算每种像素值出现的可能性fp
+    for (int i = 0; i < 256 * 8; i++)
+    {
+        gray_prob[i] = float(gray_num[i]) / pixel_num;
+    }
+    // * 计算概率密度分布PDF
+    gray_distribute[0] = gray_prob[0];
+    for (int i = 1; i < 256 * 8; i++)
+    {
+        gray_distribute[i] = gray_prob[i] + gray_distribute[i - 1];
+        if (i - gray_distribute[i] < 0.0000000001)
+        {
+            gray_distribute[i] = 1;
+        }
+    }
+    // 确定对拉普拉斯绝对值图像分割阈值
+    int init_k;
+    for (int i = 0; i < 256 * 8; i++)
+    {
+        if (gray_distribute[i] > thresh)
+        {
+            init_k = i;
+            break;
+        }
+    }
+    // 得到模板图像, 对原图掩膜
+    for (int i = 0; i < src.rows; i++)
+    {
+        for (int j = 0; j < src.cols; j++)
+        {
+            if (laplace.at<uchar>(i, j) < init_k)
+                src_laplace.at<uchar>(i, j) = 0;
+        }
+    }
+    cout << "edge based threshold: the init laplace line is " << init_k << ", ";
+    // * 使用Osu阈值分割对掩膜后的进行分割
+    osu_split(src_laplace, dst);
+}
+
+void multi_split(Mat &src, Mat &dst)
+{
+    int pixel_num;
+    // 记录原图像每个像素值的点数
+    int gray_num[256] = {0};
+    // 记录原图像每个像素值的概率
+    float gray_prob[256];
+    // 记录图像总的累计密度
+    float gray_distribute[256] = {0};
+
+    int cols, rows;
+    cols = src.cols;
+    rows = src.rows;
+    pixel_num = cols * rows;
+    // 统计每个值的个数
+    for (int i = 0; i < rows; i++)
+    {
+        // uchar *pdata = src.ptr<uchar>(i);
+        for (int j = 0; j < cols; j++)
+        {
+            int value = src.at<uchar>(i, j);
+            gray_num[value]++;
+        }
+    }
+    // * 计算每种像素值出现的可能性fp
+    for (int i = 0; i < 256; i++)
+    {
+        gray_prob[i] = double(gray_num[i]) / pixel_num;
+    }
+    // * 计算概率密度分布PDF
+    gray_distribute[0] = gray_prob[0];
+    for (int i = 1; i < 256; i++)
+    {
+        gray_distribute[i] = gray_prob[i] + gray_distribute[i - 1];
+        if (i - gray_distribute[i] < 0.0000000001)
+        {
+            gray_distribute[i] = 1;
+        }
+    }
+    // * 计算灰度均值和方差
+    double avg_gray, avg_sigma = 0;
+    for (int i = 0; i < 256; i++)
+    {
+        avg_gray += gray_prob[i] * i;
+    }
+    for (int i = 0; i < 256; i++)
+    {
+        avg_sigma += gray_prob[i] * (i - avg_gray) * (i - avg_gray);
+    }
+
+    float sigma_k[256][256] = {0};
+    for (int i = 0; i < 256; i++)
+    {
+        for (int j = i; j < 256; j++)
+        {
+            // 计算三类的概率和灰度均值
+            float gray_k[3] = {0}, prob_k[3] = {0};
+            for (int k = 0; k < i; k++)
+            {
+                gray_k[0] += gray_prob[k] * k;
+            }
+            prob_k[0] = gray_distribute[i];
+            for (int k = i; k < j; k++)
+            {
+                gray_k[1] += gray_prob[k] * k;
+                prob_k[1] += gray_prob[k];
+            }
+            for (int k = j; k < 256; k++)
+            {
+                gray_k[2] += gray_prob[k] * k;
+                prob_k[2] += gray_prob[k];
+            }
+            for (int k = 0; k < 3; k++)
+            {
+                if (prob_k[k] == 0)
+                    gray_k[k] = 0;
+                else
+                    gray_k[k] /= prob_k[k];
+            }
+            for (int k = 0; k < 3; k++)
+                sigma_k[i][j] += (gray_k[k] - avg_gray) * (gray_k[k] - avg_gray) * prob_k[k];
+        }
+    }
+
+    // * 寻找阵列中最大的k1, k2值
+    int best_k2[256] = {0};
+    for (int i = 0; i < 256; i++)
+    {
+        for (int j = 0; j < 256; j++)
+        {
+            if (sigma_k[i][j] > sigma_k[i][best_k2[i]])
+                best_k2[i] = j;
+        }
+    }
+    int best_k1 = 0;
+    for (int i = 0; i < 256; i++)
+    {
+        if (sigma_k[i][best_k2[i]] > sigma_k[best_k1][best_k2[i]])
+            best_k1 = i;
+    }
+    float eta = sigma_k[best_k1][best_k2[best_k1]] / avg_sigma;
+    cout << "multi threshould: the best k1, k2 is (" << best_k1 << ", " << best_k2[best_k1] << "), the eta is " << eta << ".\n";
+    for (int i = 0; i < rows; i++)
+    {
+        for (int j = 0; j < cols; j++)
+        {
+            if (src.at<uchar>(i, j) < best_k1)
+            {
+                dst.at<uchar>(i, j) = 0;
+            }
+            else if (src.at<uchar>(i, j) < best_k2[best_k1])
+            {
+                dst.at<uchar>(i, j) = 128;
             }
             else
             {
