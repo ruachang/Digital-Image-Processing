@@ -33,7 +33,7 @@ int main()
     // // imshow("original", bmp);
     imshow("splited pic", output);
 
-    // imwrite("result/灰度均衡结果2.png", output);
+    imwrite("result/Osu阈值分割.png", output);
 
     waitKey(0);
     destroyAllWindows();
