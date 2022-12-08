@@ -29,7 +29,6 @@ int main()
     bmpFileInfo(fpbmp, Offset, rows, cols);
     Mat bmp(rows, cols, CV_8UC1);
     bmp8bitToMat(fpbmp, bmp, Offset);
-    imshow("original", bmp);
     Mat output = bmp.clone();
     Mat edge_output = bmp.clone();
     Mat multi_output = bmp.clone();
@@ -37,7 +36,7 @@ int main()
     osu_split(bmp, output);
     edge_split(bmp, edge_output, 0.95);
     multi_split(bmp, multi_output);
-    // // imshow("original", bmp);
+    imshow("original", bmp);
     imshow("splited pic", output);
     imshow("edge based splited pic", edge_output);
     imshow("multi threshold splited pic", multi_output);
@@ -150,6 +149,7 @@ void osu_split(Mat &src, Mat &dst)
             gray_num[value]++;
         }
     }
+    // STEP1 计算图像的统计特性
     // * 计算每种像素值出现的可能性fp
     for (int i = 0; i < 256; i++)
     {
@@ -175,7 +175,7 @@ void osu_split(Mat &src, Mat &dst)
     {
         avg_sigma += gray_prob[i] * (i - avg_gray) * (i - avg_gray);
     }
-    // * 从所有可能的取值中寻找可能最佳的分界线k, 其中判断标准是类间方差
+    // STEP2 从所有可能的取值中寻找可能最佳的分界线k, 其中判断标准是类间方差
     float sigma[256] = {0};
     double k_gray[256] = {0};
 
@@ -197,7 +197,7 @@ void osu_split(Mat &src, Mat &dst)
         }
     }
 
-    // * 确定使得类间方差最大的i值
+    // STEP3 确定使得类间方差最大的i值
     int best_k = 0;
     double best_sigma = sigma[best_k];
     for (int i = 0; i < 256; i++)
@@ -210,7 +210,7 @@ void osu_split(Mat &src, Mat &dst)
     }
     double eta = best_sigma / avg_sigma;
     cout << "The best line is " << best_k << ", the eta is " << eta << ".\n";
-    // * 根据分界线对图像进行分割
+    // STEP4 根据分界线对图像进行分割
     for (int i = 0; i < rows; i++)
     {
         for (int j = 0; j < cols; j++)
@@ -229,7 +229,7 @@ void osu_split(Mat &src, Mat &dst)
 
 void edge_split(Mat &src, Mat &dst, float thresh)
 {
-    //  * 提取拉普拉斯绝对值图像
+    //  STEP1 提取拉普拉斯绝对值图像
     // 拉普拉斯算子
     Mat laplace = src.clone();
     Mat src_laplace = src.clone();
@@ -242,6 +242,10 @@ void edge_split(Mat &src, Mat &dst, float thresh)
             int laplace_tmp = 0;
             for (int p = -1; p < 2; p++)
             {
+                // 默认拉普拉斯算子的格式为
+                // 1          1           1
+                // 1    laplace_kernel    1
+                // 1          1           1
                 for (int q = -1; q < 2; q++)
                 {
                     if (i + p < 0 || j + q < 0 || i + p > src.rows - 1 || j + q > src.cols - 1)
@@ -252,6 +256,7 @@ void edge_split(Mat &src, Mat &dst, float thresh)
                         laplace_tmp += src.at<uchar>(i + p, j + q);
                 }
             }
+            // 取绝对值
             if (laplace_tmp < 0)
                 laplace_tmp = -laplace_tmp;
             if (laplace_tmp > best)
@@ -259,7 +264,7 @@ void edge_split(Mat &src, Mat &dst, float thresh)
             laplace.at<uchar>(i, j) = laplace_tmp;
         }
     }
-    // * 规定阈值对图像进行预处理, 得到模板图像
+    // STEP2 规定阈值对图像进行预处理, 得到模板图像
     int pixel_num = laplace.rows * laplace.cols;
     // 记录原图像每个像素值的点数
     int gray_num[256 * 8] = {0};
@@ -301,7 +306,7 @@ void edge_split(Mat &src, Mat &dst, float thresh)
             break;
         }
     }
-    // 得到模板图像, 对原图掩膜
+    // STEP3 得到模板图像, 对原图掩膜
     for (int i = 0; i < src.rows; i++)
     {
         for (int j = 0; j < src.cols; j++)
@@ -311,7 +316,7 @@ void edge_split(Mat &src, Mat &dst, float thresh)
         }
     }
     cout << "edge based threshold: the init laplace line is " << init_k << ", ";
-    // * 使用Osu阈值分割对掩膜后的进行分割
+    // STEP4 使用Osu阈值分割对掩膜后的进行分割
     osu_split(src_laplace, dst);
 }
 
@@ -329,6 +334,7 @@ void multi_split(Mat &src, Mat &dst)
     cols = src.cols;
     rows = src.rows;
     pixel_num = cols * rows;
+    // STEP1 计算图像的统计特性
     // 统计每个值的个数
     for (int i = 0; i < rows; i++)
     {
@@ -365,6 +371,7 @@ void multi_split(Mat &src, Mat &dst)
         avg_sigma += gray_prob[i] * (i - avg_gray) * (i - avg_gray);
     }
 
+    // STEP2 二重循环, 计算每一组可能 的分类的组合对应的方差
     float sigma_k[256][256] = {0};
     for (int i = 0; i < 256; i++)
     {
@@ -389,17 +396,20 @@ void multi_split(Mat &src, Mat &dst)
             }
             for (int k = 0; k < 3; k++)
             {
+                // 如果出现概率为0, 则灰度均值必为0
                 if (prob_k[k] == 0)
                     gray_k[k] = 0;
                 else
                     gray_k[k] /= prob_k[k];
             }
+            // 计算对应的类间方差
             for (int k = 0; k < 3; k++)
                 sigma_k[i][j] += (gray_k[k] - avg_gray) * (gray_k[k] - avg_gray) * prob_k[k];
         }
     }
 
-    // * 寻找阵列中最大的k1, k2值
+    // STEP3 寻找阵列中最大的k1, k2值
+    // 寻找第一类固定时最佳的第二类
     int best_k2[256] = {0};
     for (int i = 0; i < 256; i++)
     {
@@ -409,6 +419,7 @@ void multi_split(Mat &src, Mat &dst)
                 best_k2[i] = j;
         }
     }
+    // 寻找最佳的第一类
     int best_k1 = 0;
     for (int i = 0; i < 256; i++)
     {
@@ -417,6 +428,7 @@ void multi_split(Mat &src, Mat &dst)
     }
     float eta = sigma_k[best_k1][best_k2[best_k1]] / avg_sigma;
     cout << "multi threshould: the best k1, k2 is (" << best_k1 << ", " << best_k2[best_k1] << "), the eta is " << eta << ".\n";
+    // STEP4 对图像做阈值分割
     for (int i = 0; i < rows; i++)
     {
         for (int j = 0; j < cols; j++)
