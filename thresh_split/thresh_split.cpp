@@ -27,7 +27,8 @@ int main()
     int Offset, rows, cols;
     // * 初始化信息函数
     bmpFileInfo(fpbmp, Offset, rows, cols);
-    Mat bmp(rows, cols, CV_8UC1);
+    Mat bmp(rows, cols + 1, CV_8UC1);
+    cout << rows << cols << endl;
     bmp8bitToMat(fpbmp, bmp, Offset);
     Mat output = bmp.clone();
     Mat edge_output = bmp.clone();
@@ -118,7 +119,7 @@ void bmp8bitToMat(ifstream &fpbmp, Mat &bmp, int Offset)
     // * 从左到右, 从下到上开始读
     for (int i = (bmp.rows - 1); i >= 0; i--)
     {
-        for (int j = 0; j < bmp.cols; j++)
+        for (int j = 0; j < bmp.cols + 1; j++)
         {
             fpbmp.read((char *)&bmp.at<uchar>(i, j), 1);
         }

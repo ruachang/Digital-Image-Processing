@@ -52,7 +52,8 @@
             "array": "cpp",
             "utility": "cpp",
             "variant": "cpp",
-            "new": "cpp"
+            "new": "cpp",
+            "ios": "cpp"
         }
     
     
